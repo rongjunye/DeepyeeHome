@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Tailwind v4 主题：与后端图表配色保持一致
+   ========================================================================== */
+@theme {
+  --color-ink: #0f1115;
+  --color-surface: #171a1f;
+  --color-surface2: #1e2228;
+  --color-line: rgba(255, 255, 255, 0.08);
+  --color-gold: #c89f6d;
+  --color-teal: #7fa6a0;
+  --color-muted: #9aa0a6;
+  --color-danger: #d98f6b;
+  --font-serif: "Noto Serif SC", "Songti SC", Georgia, serif;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(200, 159, 109, 0.08), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(127, 166, 160, 0.08), transparent 60%),
+    var(--color-ink);
+  color: #e8e6e1;
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+}
+
+/* 3D 画布容器 */
+.scene3d canvas {
+  display: block;
+  border-radius: 12px;
+}

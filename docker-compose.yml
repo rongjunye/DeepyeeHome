@@ -1,0 +1,42 @@
+# ==========================================================================
+# NeuroArchAI Platform —— docker compose 编排
+#
+# 用法：
+#   docker compose up -d --build       # 构建并启动
+#   docker compose logs -f web         # 查看日志
+#   docker compose down                # 停止
+#
+# 说明：下方 environment 使用 ${VAR:-default} 形式，会读取同目录的 .env
+# （存在则生效，不存在则用默认值），因此没有 .env 也能正常启动。
+# ==========================================================================
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # 想要容器内也支持多智能体编排时改为 "true"（镜像会明显变大）
+        INSTALL_OPTIONAL: "false"
+    image: neuroarchai-platform:latest
+    container_name: neuroarchai
+    ports:
+      - "8000:8000"
+    environment:
+      # LLM 驱动方式：groq / ollama / none（默认零配置）
+      - LLM_PROVIDER=${LLM_PROVIDER:-none}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.1-8b-instant}
+      # 容器内的 Ollama 指向宿主机（Linux 需配合 extra_hosts）
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama2}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production-use-a-long-random-secret-string}
+      - DEBUG=${DEBUG:-false}
+    volumes:
+      # 持久化数据库与上传文件
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    extra_hosts:
+      # 让 Linux 上也能用 host.docker.internal 访问宿主机的 Ollama
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>登录 / 注册 · NeuroArchAI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="nav-holder"></div>
+
+  <main class="container" style="padding: 56px 0; display: grid; place-items: center">
+    <div class="card" style="width: min(430px, 94vw); padding: 30px">
+      <h2 class="section-title" style="text-align: center; margin-bottom: 6px" id="form-title">欢迎回来</h2>
+      <p class="muted small" style="text-align: center; margin-bottom: 24px" id="form-sub">
+        登录后即可管理你的设计项目
+      </p>
+
+      <form id="auth-form">
+        <div class="field" id="username-field" style="display: none">
+          <label for="username">昵称</label>
+          <input class="input" id="username" placeholder="给自己起个名字" autocomplete="nickname" />
+        </div>
+        <div class="field">
+          <label for="email">邮箱</label>
+          <input class="input" id="email" type="email" placeholder="you@example.com" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="password">密码</label>
+          <input class="input" id="password" type="password" placeholder="至少 6 位" autocomplete="current-password" required />
+        </div>
+        <button class="btn btn-primary" id="submit-btn" type="submit" style="width: 100%">登录</button>
+      </form>
+
+      <p class="muted small" style="text-align: center; margin-top: 18px">
+        <span id="switch-hint">还没有账号？</span>
+        <a href="#" id="switch-btn" style="color: var(--gold)">立即注册</a>
+      </p>
+    </div>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/login.js"></script>
+</body>
+</html>

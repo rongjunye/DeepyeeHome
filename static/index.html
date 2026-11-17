@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeuroArchAI Platform · AI 户型装修设计助手</title>
+  <meta name="description" content="上传户型图，AI 生成空间布局、风格方案与预算估算。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Inter:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="nav-holder"></div>
+
+  <!-- Hero -->
+  <header class="container" style="padding: 72px 0 40px">
+    <span class="tag tag-accent">AI × 室内设计 × 造价</span>
+    <h1 style="font-size: clamp(30px, 5vw, 52px); line-height: 1.2; margin: 18px 0 16px">
+      上传一张户型图，<br />让 AI 帮你把家「设计」出来
+    </h1>
+    <p class="muted" style="max-width: 620px; font-size: 17px">
+      NeuroArchAI 会分析你的户型条件，输出空间布局与动线建议、风格落地要点、
+      配色方案、材料清单与预算估算——并支持一键分享给家人或设计师。
+    </p>
+    <div class="row wrap" style="margin-top: 28px">
+      <a class="btn btn-primary" href="/studio.html">开始设计 →</a>
+      <a class="btn btn-ghost" href="/login.html">登录 / 注册</a>
+    </div>
+    <p class="muted small" style="margin-top: 14px">
+      零配置即可体验：未配置大模型时自动使用内置算法引擎。
+    </p>
+  </header>
+
+  <!-- 核心能力 -->
+  <section class="container" style="padding: 34px 0">
+    <h2 class="section-title">核心能力</h2>
+    <div class="grid grid-4">
+      <div class="card">
+        <div class="tag">01</div>
+        <h3 style="margin: 12px 0 8px">账号体系</h3>
+        <p class="muted small">注册 / 登录，多个项目独立管理，数据只属于你自己。</p>
+      </div>
+      <div class="card">
+        <div class="tag">02</div>
+        <h3 style="margin: 12px 0 8px">户型图上传</h3>
+        <p class="muted small">支持 PNG / JPG / WEBP，自动校验格式与体积。</p>
+      </div>
+      <div class="card">
+        <div class="tag">03</div>
+        <h3 style="margin: 12px 0 8px">AI 方案生成</h3>
+        <p class="muted small">多智能体 / 大模型 / 算法引擎三档可选，稳健可用。</p>
+      </div>
+      <div class="card">
+        <div class="tag">04</div>
+        <h3 style="margin: 12px 0 8px">保存与分享</h3>
+        <p class="muted small">方案永久保存，生成链接即可公开分享。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 三步流程 -->
+  <section class="container" style="padding: 34px 0 60px">
+    <h2 class="section-title">只需三步</h2>
+    <div class="grid grid-3">
+      <div class="card">
+        <h3>① 新建项目</h3>
+        <p class="muted small">填写项目名称、面积与房间构成，上传户型图。</p>
+      </div>
+      <div class="card">
+        <h3>② 选择风格</h3>
+        <p class="muted small">现代简约 / 北欧 / 新中式 / 侘寂 / 工业风 / 轻奢 / 奶油风。</p>
+      </div>
+      <div class="card">
+        <h3>③ 生成方案</h3>
+        <p class="muted small">查看布局建议、配色、材料清单、预算图表并分享。</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="container muted small" style="padding: 30px 0; border-top: 1px solid var(--border); text-align: center">
+    NeuroArchAI Platform · 本地运行 · AI 驱动的户型装修设计助手
+  </footer>
+
+  <script src="/js/common.js"></script>
+  <script>
+    renderNav("home");
+  </script>
+</body>
+</html>

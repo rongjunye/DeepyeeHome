@@ -1,0 +1,89 @@
+# ==========================================================================
+# CI：后端测试 + Docker 镜像构建与容器冒烟测试
+#
+# 说明：本地没有安装 Docker 时，可以把这个仓库推到 GitHub，
+# 由 Actions 在云端完成真实的 `docker build` 与容器启动验证。
+# ==========================================================================
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # ---------------- 后端测试 + 前端构建 ----------------
+  test:
+    name: 后端测试 / 前端构建
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 准备 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 安装后端依赖
+        run: pip install -r requirements.txt
+
+      - name: 运行 pytest
+        run: pytest -q
+        env:
+          LLM_PROVIDER: none
+
+      - name: 准备 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 构建前端（含类型检查）
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+  # ---------------- Docker：真实构建 + 容器冒烟 ----------------
+  docker:
+    name: Docker 构建与冒烟测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 准备 Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 校验 docker-compose.yml
+        run: docker compose config
+
+      - name: 构建镜像（多阶段）
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: neuroarchai-platform:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 启动容器并做健康检查
+        run: |
+          docker run -d --name na-ci -p 8000:8000 -e LLM_PROVIDER=none neuroarchai-platform:ci
+          ok=0
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8000/api/health; then ok=1; break; fi
+            sleep 2
+          done
+          echo "--- health ---"
+          curl -sf http://127.0.0.1:8000/api/health
+          echo
+          echo "--- 首页 ---"
+          curl -sf -o /dev/null -w "HTTP %{http_code}\n" http://127.0.0.1:8000/
+          echo "--- 容器日志 ---"
+          docker logs na-ci
+          docker rm -f na-ci
+          if [ "$ok" != "1" ]; then echo "健康检查失败"; exit 1; fi
