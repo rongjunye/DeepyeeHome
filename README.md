@@ -20,7 +20,8 @@
 2. **项目管理** —— 一个用户可管理多个项目（多套房），支持增删改查。
 3. **户型图上传** —— 支持 PNG / JPG / WEBP，服务端校验类型与体积（默认 ≤ 10MB）。
 4. **AI 方案生成** —— 四档引擎自动择优（详见第三节），产出完整方案与 Plotly 图表。
-5. **3D 户型预览** —— 后端生成布局数据，前端 Three.js 实时挤压成三维户型，可拖拽旋转查看。
+5. **户型标注 + 3D 预览** —— 可在户型图上框选真实房间（可先让视觉模型识别一版再微调），
+   3D **严格按标注坐标重建**；未标注时回退为「按面积推测」的示意图。
 6. **PDF 报告导出** —— 一键导出含方案正文、配色、预算图表、材料清单与户型图的完整报告。
 7. **保存与分享** —— 方案永久保存，可切换公开/私密，公开后生成只读分享链接（分享页同样支持导出 PDF）。
 
@@ -91,7 +92,8 @@ NeuroArchAI-Platform/
 │   │   ├── pipeline.py           # 生成编排器（核心入口）
 │   │   ├── llm_provider.py       # LLM 抽象：Groq / Ollama / none
 │   │   ├── fallback.py           # 算法引擎 + 风格预设库
-│   │   ├── layout3d.py           # 3D 户型布局生成（kd-tree 切分）
+│   │   ├── layout3d.py           # 3D 户型布局生成（kd-tree 切分）+ 标注换算
+│   │   ├── vision.py             # 户型图视觉识别（Groq / Ollama，可选）
 │   │   ├── graph.py              # LangGraph 工作流（可选）
 │   │   ├── agents.py             # CrewAI 多智能体（可选）
 │   │   └── prompts.py            # 提示词模板
@@ -113,6 +115,7 @@ NeuroArchAI-Platform/
 │       │   ├── Layout.tsx        # 全站布局与导航
 │       │   ├── DesignView.tsx    # 方案正文（详情页/分享页共用）
 │       │   ├── Room3D.tsx        # Three.js 3D 户型预览
+│       │   ├── FloorplanEditor.tsx # 户型标注编辑器（拖拽/缩放/命名）
 │       │   ├── PlotlyChart.tsx   # 图表渲染
 │       │   └── Toaster.tsx
 │       └── pages/                # Home / Login / Studio / Design / Share / Admin
@@ -133,6 +136,7 @@ NeuroArchAI-Platform/
 │   ├── conftest.py
 │   ├── test_api.py
 │   ├── test_admin.py
+│   ├── test_layout.py
 │   └── test_ai_multiagent.py
 ├── uploads/                      # 户型图存储
 ├── data/                         # SQLite 数据库
@@ -358,6 +362,10 @@ pytest -q
 | GET | `/api/share/{token}` | 公开分享页数据 | 否 |
 | GET | `/api/share/{token}/report` | 公开方案的 PDF 报告 | 否 |
 | POST | `/api/auth/change-password` | 修改当前用户密码 | 是 |
+| GET | `/api/projects/{id}/layout` | 读取已保存的户型标注 | 是 |
+| PUT | `/api/projects/{id}/layout` | 保存户型标注 | 是 |
+| DELETE | `/api/projects/{id}/layout` | 清除户型标注 | 是 |
+| POST | `/api/projects/{id}/recognize` | 用视觉模型识别户型图 | 是 |
 | GET | `/api/admin/stats` | 全局统计（用户/项目/方案数） | 管理员 |
 | GET | `/api/admin/users` | 用户列表（含项目/方案数） | 管理员 |
 | PATCH | `/api/admin/users/{id}` | 启用/停用、授予/取消管理员 | 管理员 |
@@ -448,3 +456,51 @@ python scripts/create_admin.py --list
 - 所有 `/api/admin/*` 接口都经过 `get_current_admin` 依赖，非管理员一律 `403`。
 - 账号被停用后，登录接口与携带旧令牌的请求都会被拒绝（`403`）。
 - **不提供「删除用户」接口**，避免误删导致其项目与方案一并消失；需要时用「停用」代替。
+
+---
+
+## 十三、户型标注与 3D 一致性（重要）
+
+### 为什么早期版本的 3D 和户型图对不上？
+
+因为**它从来没有读取过户型图**。旧实现只用「面积（数字）+ 房间构成（文字）」，
+用 kd-tree 把一块抽象矩形切成若干块 —— 产出的是**示意图**，
+而不是你家户型的重建。这是设计缺陷，不是模型能力问题。
+
+### 现在的流程
+
+```
+上传户型图
+  ├─（可选）点「AI 识别户型」→ 视觉模型给出每个房间的矩形建议
+  ├─ 在图上拖动方块移动、拖四角缩放，逐一命名（客厅 / 主卧 / 次卧 …）
+  ├─ 点「保存标注」→ 存进项目
+  └─ 生成方案时，3D 严格按标注坐标重建（layout3d.source = "manual"）
+未标注 → 回退为「按面积推测」的示意图（source = "算法回退"）
+```
+
+标注以**归一化坐标 0~1**（相对户型图）保存，并记录 `total_width_m`（户型总宽）
+与 `image_aspect`（图片高 / 宽），换算成米后交给 Three.js 建模。
+
+> `total_width_m` 默认 12 米；调用识别接口时，会用「项目面积 ÷ 图片比例」自动估算，
+> 让米制尺寸更贴近实际。
+
+### 用视觉模型自动识别（可选）
+
+需要把 `LLM_PROVIDER` 设为 `groq` 或 `ollama`，并使用**支持图片输入**的模型：
+
+```env
+# Groq
+LLM_PROVIDER=groq
+GROQ_API_KEY=你的Key
+VISION_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
+
+# 或本地 Ollama
+LLM_PROVIDER=ollama
+VISION_MODEL=qwen2.5vl:7b
+```
+
+未配置时，「AI 识别户型」会返回明确提示（HTTP 400），**手动画房间依然完全可用**。
+
+> ⚠️ 两点如实说明：
+> ① 识别准确度取决于模型与图纸质量，**建议识别后人工核对**再保存；
+> ② 本项目开发环境未配置 API Key，因此识别路径**只做了降级验证，未做真实识别验证**。

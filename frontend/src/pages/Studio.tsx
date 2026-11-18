@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, auth, floorplanUrl } from "../api";
+import { FloorplanEditor, TYPE_COLOR } from "../components/FloorplanEditor";
 import { toast } from "../toast";
-import { BUDGET_LEVELS, STYLE_OPTIONS } from "../types";
-import type { Design, DesignListItem, Project } from "../types";
+import { BUDGET_LEVELS, ROOM_TYPES, STYLE_OPTIONS } from "../types";
+import type { Design, DesignListItem, LayoutRoom, Project, ProjectLayout } from "../types";
 
 const inputClass =
   "w-full rounded-[11px] border border-line bg-black/25 px-3.5 py-2.5 text-sm outline-none transition focus:border-gold/60 focus:ring-3 focus:ring-gold/12";
@@ -21,6 +22,13 @@ export function Studio() {
   const [creating, setCreating] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+
+  // 户型标注（决定 3D 是否与户型图一致）
+  const [layout, setLayout] = useState<ProjectLayout | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<number | null>(null);
+  const [savingLayout, setSavingLayout] = useState(false);
+  const [recognizing, setRecognizing] = useState(false);
+  const [imageAspect, setImageAspect] = useState(0.75);
 
   // 新建项目表单
   const [title, setTitle] = useState("");
@@ -86,10 +94,31 @@ export function Studio() {
       const project = await api<Project>(`/projects/${id}`);
       setSelected(project);
       setGenArea(String(project.meta_info?.area ?? ""));
+      await loadLayout(project.id, project.floorplan_path);
       await loadDesigns(id);
       window.scrollTo({ top: 320, behavior: "smooth" });
     } catch (error) {
       toast(error instanceof Error ? error.message : "打开失败", "error");
+    }
+  }
+
+  /** 载入已保存的户型标注，并根据户型图真实比例设置纵横比 */
+  async function loadLayout(projectId: number, floorplanPath: string | null) {
+    setSelectedRoom(null);
+    try {
+      const data = await api<ProjectLayout>(`/projects/${projectId}/layout`);
+      setLayout(data);
+      if (data.rooms.length && data.image_aspect) setImageAspect(data.image_aspect);
+    } catch {
+      setLayout({ rooms: [], total_width_m: 12, image_aspect: 0.75, source: "manual" });
+    }
+
+    if (floorplanPath) {
+      const probe = new Image();
+      probe.onload = () => {
+        if (probe.width) setImageAspect(probe.height / probe.width);
+      };
+      probe.src = floorplanUrl(floorplanPath);
     }
   }
 
@@ -114,6 +143,7 @@ export function Studio() {
       });
       setSelected(updated);
       toast("户型图上传成功", "success");
+      await loadLayout(updated.id, updated.floorplan_path);
       loadProjects();
     } catch (error) {
       toast(error instanceof Error ? error.message : "上传失败", "error");
@@ -137,6 +167,103 @@ export function Studio() {
     } catch (error) {
       toast(error instanceof Error ? error.message : "生成失败", "error");
       setGenerating(false);
+    }
+  }
+
+  /* ---------------- 户型标注 ---------------- */
+
+  const layoutValue: ProjectLayout = layout ?? {
+    rooms: [],
+    total_width_m: 12,
+    image_aspect: imageAspect,
+    source: "manual",
+  };
+
+  async function recognizeLayout() {
+    if (!selected) return;
+    setRecognizing(true);
+    try {
+      const data = await api<ProjectLayout>(`/projects/${selected.id}/recognize`, {
+        method: "POST",
+      });
+      setLayout({ ...data, image_aspect: data.image_aspect || imageAspect });
+      setSelectedRoom(null);
+      toast(`识别到 ${data.rooms.length} 个房间，请核对并微调后保存`, "success");
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "识别失败", "error");
+    } finally {
+      setRecognizing(false);
+    }
+  }
+
+  function addRoom() {
+    const base = layoutValue;
+    const room: LayoutRoom = {
+      name: `房间${base.rooms.length + 1}`,
+      type: "other",
+      x: 0.08,
+      y: 0.08,
+      w: 0.24,
+      h: 0.24,
+    };
+    setLayout({ ...base, rooms: [...base.rooms, room], source: "manual" });
+    setSelectedRoom(base.rooms.length);
+  }
+
+  function updateRoom(index: number, patch: Partial<LayoutRoom>) {
+    setLayout({
+      ...layoutValue,
+      rooms: layoutValue.rooms.map((room, i) => (i === index ? { ...room, ...patch } : room)),
+      source: "manual",
+    });
+  }
+
+  function removeRoom(index: number) {
+    setLayout({
+      ...layoutValue,
+      rooms: layoutValue.rooms.filter((_, i) => i !== index),
+      source: "manual",
+    });
+    setSelectedRoom(null);
+  }
+
+  async function saveLayout() {
+    if (!selected) return;
+    if (!layoutValue.rooms.length) {
+      toast("请先添加或识别至少一个房间", "error");
+      return;
+    }
+    setSavingLayout(true);
+    try {
+      const payload: ProjectLayout = {
+        ...layoutValue,
+        image_aspect: imageAspect,
+        total_width_m: layoutValue.total_width_m || 12,
+      };
+      const updated = await api<Project>(`/projects/${selected.id}/layout`, {
+        method: "PUT",
+        body: payload,
+      });
+      setLayout(payload);
+      setSelected(updated);
+      await loadProjects();
+      toast("户型标注已保存，之后生成的方案 3D 会按它重建", "success");
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "保存失败", "error");
+    } finally {
+      setSavingLayout(false);
+    }
+  }
+
+  async function clearLayout() {
+    if (!selected) return;
+    try {
+      await api(`/projects/${selected.id}/layout`, { method: "DELETE" });
+      setLayout({ rooms: [], total_width_m: 12, image_aspect: imageAspect, source: "manual" });
+      setSelectedRoom(null);
+      toast("已清除户型标注", "success");
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "清除失败", "error");
     }
   }
 
@@ -353,6 +480,125 @@ export function Studio() {
                 </button>
               </form>
             </div>
+          </div>
+
+          {/* 户型标注 */}
+          <h3 className="mt-7 mb-3.5 text-base font-semibold">
+            户型标注
+            <span className="ml-2 text-[13px] font-normal text-muted">
+              决定 3D 是否与你的户型图一致
+            </span>
+          </h3>
+          <div className={cardClass}>
+            {!selected.floorplan_path ? (
+              <p className="text-[13px] text-muted">
+                请先在上方上传户型图，然后就能在图上标注每个房间的位置了。
+              </p>
+            ) : (
+              <>
+                <div className="mb-3.5 flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={recognizeLayout}
+                    disabled={recognizing}
+                    className="rounded-[11px] bg-gradient-to-br from-gold to-[#b98a54] px-4 py-2 text-[13px] font-semibold text-[#17130c] transition hover:brightness-105 disabled:opacity-50"
+                  >
+                    {recognizing ? "AI 识别中…" : "AI 识别户型"}
+                  </button>
+                  <button
+                    onClick={addRoom}
+                    className="rounded-[11px] border border-line bg-white/5 px-3.5 py-2 text-[13px] transition hover:bg-white/10"
+                  >
+                    + 添加房间
+                  </button>
+                  <button
+                    onClick={saveLayout}
+                    disabled={savingLayout}
+                    className="rounded-[11px] border border-line bg-white/5 px-3.5 py-2 text-[13px] transition hover:bg-white/10 disabled:opacity-40"
+                  >
+                    {savingLayout ? "保存中…" : "保存标注"}
+                  </button>
+                  <button
+                    onClick={clearLayout}
+                    className="rounded-[11px] border border-line bg-white/5 px-3.5 py-2 text-[13px] text-danger transition hover:bg-white/10"
+                  >
+                    清除
+                  </button>
+                  <span className="text-[13px] text-muted">
+                    {layoutValue.rooms.length > 0
+                      ? `已标注 ${layoutValue.rooms.length} 个房间`
+                      : "尚未标注（3D 将用算法推测）"}
+                  </span>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+                  <FloorplanEditor
+                    imageUrl={floorplanUrl(selected.floorplan_path)}
+                    aspect={imageAspect}
+                    value={layoutValue}
+                    onChange={setLayout}
+                    selected={selectedRoom}
+                    onSelect={setSelectedRoom}
+                  />
+
+                  <div className="max-h-[480px] space-y-2 overflow-y-auto pr-1">
+                    {layoutValue.rooms.map((room, index) => (
+                      <div
+                        key={index}
+                        onClick={() => setSelectedRoom(index)}
+                        className={`flex cursor-pointer items-center gap-2 rounded-[10px] border p-2 transition ${
+                          selectedRoom === index
+                            ? "border-gold/50 bg-gold/5"
+                            : "border-line hover:bg-white/5"
+                        }`}
+                      >
+                        <span
+                          className="h-3.5 w-3.5 shrink-0 rounded-sm"
+                          style={{ background: room.color || TYPE_COLOR[room.type] || "#9AA0A6" }}
+                        />
+                        <input
+                          className="w-full min-w-0 rounded-md border border-line bg-black/25 px-2 py-1 text-[13px] outline-none focus:border-gold/60"
+                          value={room.name}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => updateRoom(index, { name: e.target.value })}
+                        />
+                        <select
+                          className="shrink-0 rounded-md border border-line bg-black/25 px-1.5 py-1 text-[13px] outline-none focus:border-gold/60"
+                          value={room.type}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => updateRoom(index, { type: e.target.value })}
+                        >
+                          {ROOM_TYPES.map((type) => (
+                            <option key={type.value} value={type.value}>
+                              {type.label}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeRoom(index);
+                          }}
+                          className="shrink-0 rounded-md px-2 py-1 text-[13px] text-muted transition hover:text-danger"
+                          title="删除"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    {layoutValue.rooms.length === 0 && (
+                      <p className="text-[13px] leading-relaxed text-muted">
+                        还没有房间。点「AI 识别户型」自动识别，或「+ 添加房间」手动框选。
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <p className="mt-3 text-[13px] leading-relaxed text-muted">
+                  在图上拖动方块可移动，拖四个角可缩放。保存后，生成方案时 3D
+                  会严格按这些坐标重建；未标注则回退到「按面积推测」的示意图。
+                </p>
+              </>
+            )}
           </div>
 
           {/* 方案列表 */}

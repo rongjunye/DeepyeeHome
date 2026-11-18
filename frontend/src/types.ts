@@ -44,7 +44,41 @@ export interface Project {
   meta_info: Record<string, unknown>;
   created_at: string;
   design_count: number;
+  /** 是否已保存真实户型标注 */
+  has_layout: boolean;
 }
+
+/** 标注中的一个房间（坐标为相对户型图的归一化值 0~1） */
+export interface LayoutRoom {
+  name: string;
+  type: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  color?: string | null;
+}
+
+/** 项目保存的真实户型布局 */
+export interface ProjectLayout {
+  rooms: LayoutRoom[];
+  total_width_m: number;
+  image_aspect: number;
+  source: string;
+}
+
+/** 房间类型可选项 */
+export const ROOM_TYPES = [
+  { value: "living", label: "客厅" },
+  { value: "dining", label: "餐厅" },
+  { value: "kitchen", label: "厨房" },
+  { value: "master", label: "主卧" },
+  { value: "bedroom", label: "次卧" },
+  { value: "bath", label: "卫生间" },
+  { value: "balcony", label: "阳台" },
+  { value: "entry", label: "玄关" },
+  { value: "other", label: "其他" },
+];
 
 export interface ColorSwatch {
   name: string;

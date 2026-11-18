@@ -62,6 +62,8 @@ class Project(Base):
     floorplan_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     # 户型元信息：面积、房间数、朝向等（前端表单可填）
     meta_info: Mapped[dict] = mapped_column(JSON, default=dict)
+    # 用户确认过的真实户型布局（归一化坐标 0~1）；为空表示尚未标注
+    layout_json: Mapped[dict] = mapped_column(JSON, default=dict)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 

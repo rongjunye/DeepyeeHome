@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     llm_timeout: float = 60.0
     llm_max_tokens: int = 2048
 
+    # 视觉模型（用于识别户型图）；留空则按 provider 取默认
+    vision_model: str = ""
+
     # ---------------- 安全 ----------------
     # 开发默认值；生产环境请在 .env 中替换为随机长字符串（≥32 字节）
     secret_key: str = "change-me-in-production-use-a-long-random-secret-string"

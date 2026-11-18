@@ -172,3 +172,61 @@ def build_layout3d(
         "area": area,
         "rooms": rooms_out,
     }
+
+
+def layout_from_stored(stored: dict[str, Any] | None) -> dict[str, Any] | None:
+    """把用户确认 / AI 识别后保存的归一化布局换算成三维布局（单位：米）。
+
+    ``stored`` 结构::
+
+        {"rooms": [{"name","type","x","y","w","h","color"}],
+         "total_width_m": 12.0, "image_aspect": 0.75, "source": "manual"}
+
+    返回 ``None`` 表示没有可用布局（此时调用方应回退到算法推测）。
+    """
+    if not stored:
+        return None
+
+    raw_rooms = stored.get("rooms") or []
+    if not raw_rooms:
+        return None
+
+    width_m = float(stored.get("total_width_m") or 12.0)
+    aspect = float(stored.get("image_aspect") or 0.75)
+    depth_m = width_m * aspect
+
+    rooms_out: list[dict[str, Any]] = []
+    for index, room in enumerate(raw_rooms):
+        try:
+            x = float(room["x"])
+            y = float(room["y"])
+            w = float(room["w"])
+            h = float(room["h"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if w <= 0 or h <= 0:
+            continue
+        rooms_out.append(
+            {
+                "name": str(room.get("name") or f"房间{index + 1}"),
+                "type": str(room.get("type") or "other"),
+                "x": round(x * width_m, 3),
+                "z": round(y * depth_m, 3),
+                "w": round(w * width_m, 3),
+                "d": round(h * depth_m, 3),
+                "area": round(w * width_m * h * depth_m, 2),
+                "color": room.get("color") or "#C89F6D",
+            }
+        )
+
+    if not rooms_out:
+        return None
+
+    return {
+        "width": round(width_m, 2),
+        "depth": round(depth_m, 2),
+        "wall_height": 2.8,
+        "area": round(width_m * depth_m, 2),
+        "rooms": rooms_out,
+        "source": str(stored.get("source") or "manual"),
+    }

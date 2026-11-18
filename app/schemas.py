@@ -86,6 +86,31 @@ class ProjectOut(BaseModel):
     meta_info: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     design_count: int = 0
+    has_layout: bool = False
+
+
+# ==========================================================================
+# 真实户型布局（标注 / AI 识别）
+# ==========================================================================
+class LayoutRoomIn(BaseModel):
+    """一个房间：坐标均为相对户型图的归一化值（0~1）。"""
+
+    name: str = Field(min_length=1, max_length=32, description="房间名，如 客厅")
+    type: str = Field(default="bedroom", max_length=32, description="房间类型")
+    x: float = Field(ge=0, le=1, description="左上角 X（0~1）")
+    y: float = Field(ge=0, le=1, description="左上角 Y（0~1）")
+    w: float = Field(gt=0, le=1, description="宽度（0~1）")
+    h: float = Field(gt=0, le=1, description="高度（0~1）")
+    color: Optional[str] = Field(default=None, max_length=16)
+
+
+class ProjectLayout(BaseModel):
+    """整套户型布局。"""
+
+    rooms: List[LayoutRoomIn] = Field(default_factory=list)
+    total_width_m: float = Field(default=12.0, gt=1, le=100, description="户型总宽（米）")
+    image_aspect: float = Field(default=0.75, gt=0.1, le=10, description="户型图 高/宽")
+    source: str = Field(default="manual", max_length=16, description="manual 或 vision")
 
 
 # ==========================================================================

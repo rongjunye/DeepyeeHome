@@ -55,18 +55,32 @@ def _ensure_columns() -> None:
     from sqlalchemy import inspect, text
 
     inspector = inspect(engine)
-    if "users" not in inspector.get_table_names():
+    tables = set(inspector.get_table_names())
+
+    statements: list[str] = []
+
+    if "users" in tables:
+        existing = {column["name"] for column in inspector.get_columns("users")}
+        if "is_admin" not in existing:
+            statements.append(
+                "ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0"
+            )
+        if "is_active" not in existing:
+            statements.append(
+                "ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"
+            )
+
+    if "projects" in tables:
+        existing = {column["name"] for column in inspector.get_columns("projects")}
+        if "layout_json" not in existing:
+            statements.append("ALTER TABLE projects ADD COLUMN layout_json JSON")
+
+    if not statements:
         return
 
-    existing = {column["name"] for column in inspector.get_columns("users")}
-    additions = {
-        "is_admin": "ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0",
-        "is_active": "ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1",
-    }
     with engine.begin() as conn:
-        for column, ddl in additions.items():
-            if column not in existing:
-                conn.execute(text(ddl))
+        for statement in statements:
+            conn.execute(text(statement))
 
 
 def init_db() -> None:

@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai import generate_design
+from app.ai.layout3d import layout_from_stored
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Design, Project, User
@@ -69,6 +70,11 @@ def create_design(
         budget_level=payload.budget_level,
         requirements=payload.requirements,
     )
+
+    # 若项目已保存用户确认的真实户型布局，则用它覆盖算法推测的 3D 布局
+    stored_layout = layout_from_stored(project.layout_json)
+    if stored_layout:
+        result["layout3d"] = stored_layout
 
     design = Design(
         project_id=project.id,
