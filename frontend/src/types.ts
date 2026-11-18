@@ -4,7 +4,30 @@ export interface User {
   id: number;
   email: string;
   username: string;
+  is_admin: boolean;
+  is_active: boolean;
   created_at: string;
+}
+
+/** 管理后台：用户条目（含数据统计） */
+export interface AdminUser {
+  id: number;
+  email: string;
+  username: string;
+  is_admin: boolean;
+  is_active: boolean;
+  created_at: string;
+  project_count: number;
+  design_count: number;
+}
+
+/** 管理后台：全局统计 */
+export interface AdminStats {
+  total_users: number;
+  active_users: number;
+  admin_users: number;
+  total_projects: number;
+  total_designs: number;
 }
 
 export interface TokenResponse {

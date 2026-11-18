@@ -8,19 +8,11 @@
 
 from __future__ import annotations
 
-# 环境变量已由 tests/conftest.py 统一设置（独立测试数据库）
+# 环境变量与 client fixture 已由 tests/conftest.py 统一提供（独立测试数据库）
 
 import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
 
-from app.main import app  # noqa: E402
-
-
-@pytest.fixture(scope="module")
-def client():
-    """提供带生命周期的测试客户端（启动时自动建表）。"""
-    with TestClient(app) as c:
-        yield c
+from app.main import app  # noqa: E402  # noqa: F401
 
 
 @pytest.fixture(scope="module")

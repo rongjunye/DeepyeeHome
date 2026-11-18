@@ -34,7 +34,16 @@ class UserOut(BaseModel):
     id: int
     email: EmailStr
     username: str
+    is_admin: bool = False
+    is_active: bool = True
     created_at: datetime
+
+
+class PasswordChange(BaseModel):
+    """修改密码请求体。"""
+
+    old_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=6, max_length=128, description="新密码，至少 6 位")
 
 
 class Token(BaseModel):
@@ -149,3 +158,38 @@ class ShareUpdate(BaseModel):
     """分享设置请求体。"""
 
     is_public: bool
+
+
+# ==========================================================================
+# 管理后台
+# ==========================================================================
+class AdminUserOut(BaseModel):
+    """管理后台的用户条目（含数据统计）。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    email: EmailStr
+    username: str
+    is_admin: bool
+    is_active: bool
+    created_at: datetime
+    project_count: int = 0
+    design_count: int = 0
+
+
+class AdminUserUpdate(BaseModel):
+    """管理后台更新用户（字段均可选，只传需要改的）。"""
+
+    is_active: Optional[bool] = None
+    is_admin: Optional[bool] = None
+
+
+class AdminStatsOut(BaseModel):
+    """管理后台全局统计。"""
+
+    total_users: int
+    active_users: int
+    admin_users: int
+    total_projects: int
+    total_designs: int

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import User
-from app.schemas import Token, UserLogin, UserOut, UserRegister
+from app.schemas import PasswordChange, Token, UserLogin, UserOut, UserRegister
 from app.security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/auth", tags=["认证"])
@@ -37,10 +37,13 @@ def register(payload: UserRegister, db: Session = Depends(get_db)) -> Token:
 
 @router.post("/login", response_model=Token)
 def login(payload: UserLogin, db: Session = Depends(get_db)) -> Token:
-    """邮箱 + 密码登录。"""
+    """邮箱 + 密码登录。被停用的账号会被拒绝。"""
     user = db.scalar(select(User).where(User.email == payload.email))
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="邮箱或密码不正确")
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="账号已被停用，请联系管理员")
 
     token = create_access_token(user.id)
     return Token(access_token=token, user=UserOut.model_validate(user))
@@ -50,3 +53,19 @@ def login(payload: UserLogin, db: Session = Depends(get_db)) -> Token:
 def me(current: User = Depends(get_current_user)) -> UserOut:
     """返回当前登录用户信息。"""
     return UserOut.model_validate(current)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(
+    payload: PasswordChange,
+    db: Session = Depends(get_db),
+    current: User = Depends(get_current_user),
+) -> None:
+    """修改当前用户密码（需校验原密码）。"""
+    if not verify_password(payload.old_password, current.hashed_password):
+        raise HTTPException(status_code=400, detail="原密码不正确")
+    if payload.old_password == payload.new_password:
+        raise HTTPException(status_code=400, detail="新密码不能与原密码相同")
+
+    current.hashed_password = hash_password(payload.new_password)
+    db.commit()

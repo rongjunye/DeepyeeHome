@@ -33,6 +33,11 @@ export function Layout() {
             <NavLink to="/studio" className={linkClass}>
               工作台
             </NavLink>
+            {loggedIn && user?.is_admin && (
+              <NavLink to="/admin" className={linkClass}>
+                管理
+              </NavLink>
+            )}
             {loggedIn ? (
               <>
                 <span className="px-3.5 py-2 text-sm text-gold">{user?.username ?? "我的"}</span>

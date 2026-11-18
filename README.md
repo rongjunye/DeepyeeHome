@@ -85,7 +85,8 @@ NeuroArchAI-Platform/
 │   ├── routers/
 │   │   ├── auth.py               # 注册 / 登录 / 我的信息
 │   │   ├── projects.py           # 项目 CRUD + 户型图上传
-│   │   └── designs.py            # 方案生成 / 查询 / 分享 / PDF 导出
+│   │   ├── designs.py            # 方案生成 / 查询 / 分享 / PDF 导出
+│   │   └── admin.py              # 管理后台：用户列表 / 启停 / 统计
 │   ├── ai/
 │   │   ├── pipeline.py           # 生成编排器（核心入口）
 │   │   ├── llm_provider.py       # LLM 抽象：Groq / Ollama / none
@@ -114,7 +115,7 @@ NeuroArchAI-Platform/
 │       │   ├── Room3D.tsx        # Three.js 3D 户型预览
 │       │   ├── PlotlyChart.tsx   # 图表渲染
 │       │   └── Toaster.tsx
-│       └── pages/                # Home / Login / Studio / Design / Share
+│       └── pages/                # Home / Login / Studio / Design / Share / Admin
 ├── static/                       # 免构建原生前端（兜底）
 │   ├── css/style.css
 │   ├── index.html / login.html / studio.html / design.html / share.html
@@ -123,11 +124,15 @@ NeuroArchAI-Platform/
 │       ├── studio.js / design.js / login.js / share.js
 │       └── room3d.js             # 3D 户型预览（ES Module + importmap）
 ├── scripts/
-│   └── verify_docker.ps1         # 本地 Docker 构建 / 运行校验脚本
+│   ├── create_admin.py           # 创建 / 提升管理员账号
+│   ├── verify_docker.ps1         # 本地 Docker 构建 / 运行校验脚本
+│   └── push_to_github.ps1        # 一键推送本项目到 GitHub
+├── start.bat / start.ps1         # 启动脚本（自动定位 Python，绕过 PATH 问题）
 ├── .github/workflows/ci.yml      # CI：pytest + 前端构建 + Docker 冒烟
 ├── tests/                        # 测试
 │   ├── conftest.py
 │   ├── test_api.py
+│   ├── test_admin.py
 │   └── test_ai_multiagent.py
 ├── uploads/                      # 户型图存储
 ├── data/                         # SQLite 数据库
@@ -352,6 +357,10 @@ pytest -q
 | GET | `/api/designs/{id}/report` | 导出 PDF 报告 | 是 |
 | GET | `/api/share/{token}` | 公开分享页数据 | 否 |
 | GET | `/api/share/{token}/report` | 公开方案的 PDF 报告 | 否 |
+| POST | `/api/auth/change-password` | 修改当前用户密码 | 是 |
+| GET | `/api/admin/stats` | 全局统计（用户/项目/方案数） | 管理员 |
+| GET | `/api/admin/users` | 用户列表（含项目/方案数） | 管理员 |
+| PATCH | `/api/admin/users/{id}` | 启用/停用、授予/取消管理员 | 管理员 |
 
 ---
 
@@ -377,7 +386,8 @@ pytest -q
 `postgresql+psycopg://user:pass@host:5432/dbname` 并安装对应驱动即可，其余代码无需改动。
 
 **Q：从旧版本升级后报「no such column」？**
-本项目新增了 `layout3d` 字段。若沿用旧数据库，删除 `data/*.db` 让其重建即可。
+用户表的 `is_admin` / `is_active` 会在启动时**自动补列**；但更早版本新增的
+`designs.layout3d` 不会自动补。最省事的做法是删除 `data/*.db` 让数据库重建（会清空数据）。
 
 ---
 
@@ -388,3 +398,53 @@ pytest -q
 - 所有项目 / 方案接口均做归属校验，越权访问一律返回 404。
 - 分享链接仅在方案被显式设为公开后生效；公开报告接口同样校验公开状态。
 - 生产环境请务必修改 `.env` 中的 `SECRET_KEY`。
+
+---
+
+## 十二、账号与权限管理
+
+### 角色模型
+
+| 角色 | 说明 |
+| --- | --- |
+| 普通用户 | 注册即获得，只能管理自己的项目与方案 |
+| 管理员 | 额外拥有后台权限：查看全部用户、启用/停用账号、授予/取消管理员、查看全局统计 |
+
+`users` 表新增两个字段：
+
+- `is_admin`：是否为管理员（默认 `false`）
+- `is_active`：账号是否启用（默认 `true`；停用后**登录与已有令牌都会失效**）
+
+> 升级旧数据库时会自动补齐这两个字段（见 `app/database.py` 的轻量迁移），无需手动改表。
+
+### 创建 / 提升管理员
+
+```bash
+# 创建管理员（邮箱已存在时会直接提升，并可选重置密码）
+python scripts/create_admin.py --email you@example.com --username 你的名字 --password 'YourPass123'
+
+# 只把已有用户提升为管理员（不改密码）
+python scripts/create_admin.py --promote you@example.com
+
+# 查看所有用户
+python scripts/create_admin.py --list
+```
+
+### 管理后台页面
+
+管理员登录后，顶部导航会出现「管理」入口，地址 `/admin`，可以：
+
+- **全局统计**：总用户 / 启用中 / 管理员 / 项目数 / 方案数
+- **用户管理**：启用或停用账号、授予或取消管理员
+  （**不能停用或降级自己**，避免把自己锁在门外）
+- **修改密码**：校验原密码后更新
+
+### 修改密码（所有用户）
+
+`POST /api/auth/change-password`，需提供 `old_password` 与 `new_password`（≥6 位）。
+
+### 安全约定
+
+- 所有 `/api/admin/*` 接口都经过 `get_current_admin` 依赖，非管理员一律 `403`。
+- 账号被停用后，登录接口与携带旧令牌的请求都会被拒绝（`403`）。
+- **不提供「删除用户」接口**，避免误删导致其项目与方案一并消失；需要时用「停用」代替。

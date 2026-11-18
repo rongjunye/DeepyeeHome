@@ -47,9 +47,32 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def _ensure_columns() -> None:
+    """轻量迁移：给已存在的旧表补齐后续版本新增的列。
+
+    避免升级代码后出现 "no such column"（SQLite 的 create_all 不会改已有表）。
+    """
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    if "users" not in inspector.get_table_names():
+        return
+
+    existing = {column["name"] for column in inspector.get_columns("users")}
+    additions = {
+        "is_admin": "ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0",
+        "is_active": "ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1",
+    }
+    with engine.begin() as conn:
+        for column, ddl in additions.items():
+            if column not in existing:
+                conn.execute(text(ddl))
+
+
 def init_db() -> None:
-    """建表：应用启动时调用一次（幂等）。"""
+    """建表 + 补齐新增列：应用启动时调用一次（幂等）。"""
     # 延迟导入，确保所有模型都已注册到 Base.metadata
     from app import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    _ensure_columns()
